@@ -1,13 +1,13 @@
-CFLAGS=-std=gnu11 -pedantic -Wall -Wshadow -Wpointer-arith -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes -g -O0
+CFLAGS=-std=gnu11 -pedantic -Wall -Wshadow -Wpointer-arith -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes -g -O0 -lpthread
 CC=gcc
 default: all
 all: app clip
 
 app: src/app.c
-	$(CC) -o bin/application src/app.c $(CFLAGS)
+	$(CC) -o application src/app.c src/library.c src/communications.c $(CFLAGS)
 
-clip: src/clip.c src/lib/com.c
-	$(CC) -o bin/clipboard src/clip.c src/lib/com.c $(CFLAGS)
+clip: src/clip.c
+	$(CC) -o clipboard src/clip.c src/library.c src/communications.c $(CFLAGS)
 
 clean:
-	-rm -f bin/application bin/clipboard
+	-rm -rf application clipboard CLIPBOARD_SOCKET
