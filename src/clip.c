@@ -7,7 +7,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "communications.h"
 #include "clipboard.h"
 
 #define REGIONS_QUANTITY 10
@@ -22,9 +21,8 @@ void *thr_code_recv_conn_loc_app(void *fd) {
     pthread_t thr_id_conn_app;
     socklen_t addrlen = sizeof(app_addr);
 
-    printf("[DEBUG] New thread created (ls thread)\n");
+    printf("[DEBUG] New thread created (app listening thread)\n");
     while(1) {
-
 
         if ((app_fd = accept(*(int *)fd, (struct sockaddr*)&app_addr, &addrlen)) == -1) {
             perror("Error [accept ls socket]");
@@ -34,7 +32,7 @@ void *thr_code_recv_conn_loc_app(void *fd) {
 
         // Create new thread for the newly connected app
         if (pthread_create(&thr_id_conn_app, NULL, thr_code_recv_conn_app, &app_fd) != 0) {
-            perror("Error [pthread_create]: ");
+            perror("Error [pthread_create]");
             pthread_exit(NULL);
         }
     }
@@ -42,18 +40,50 @@ void *thr_code_recv_conn_loc_app(void *fd) {
 }
 
 void *thr_code_recv_conn_app(void *fd) {
-    int buf_len = 100;
-    char buf[100];
+    int buf_len = 10;
+    char buf[buf_len];
     int nbytes;
+    char *message = NULL;
+    char dest[8];
+    int msg_size;
+
     printf("[DEBUG] New thread created (communication thread)\n");
     while(1) {
-        printf("[DEBUG] [App thread] Got a connection with an app...\n");
-        nbytes = unix_stream_read(*(int *)fd, buf, buf_len);
+        printf("[DEBUG][App thread] Got a connection with an app...\n");
+
+        nbytes = recv(*(int *)fd, buf, buf_len, 0);
+        printf("[DEBUG][App thread] After read\n");
         if (nbytes == -1 || nbytes == 0) {
             printf("Error reading from app or app closed!\n");
             pthread_exit(NULL);
         } else {
             printf("[DEBUG] Received '%s' (%d bytes) from app.\n", buf, nbytes);
+        }
+
+        printf("Received: %s\n", buf);
+
+        strncpy(dest, &buf[2], 8);
+        printf("Operation: %c\n", buf[0]);
+        printf("Region: %c\n", buf[1]);
+        printf("Length: %d\n", atoi(dest));
+        msg_size = atoi(dest) + 1;
+        if ((message = (char *)malloc(msg_size * sizeof(char))) == NULL) {
+            perror("Error [malloc]");
+            pthread_exit(NULL);
+        }
+
+        if (buf[0] == 'c') {
+            nbytes = recv(*(int *)fd, message, msg_size, 0);
+            printf("Received: %s\n", message);
+            // TODO: save on data_regions
+        } else if (buf[0] == 'p') {
+            printf("Operation: paste\n");
+            nbytes = recv(*(int *)fd, message, msg_size, 0);
+        } else if (buf[0] == 'w') {
+            printf("Operation: wait\n");
+        } else {
+            printf("Wrong operation!\n");
+            continue;
         }
     }
     return NULL;

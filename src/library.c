@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "clipboard.h"
-#include "communications.h"
 
 int clipboard_connect(char *clipboard_dir) {
 
@@ -31,6 +30,20 @@ int clipboard_connect(char *clipboard_dir) {
 
 int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
 
+    if (region < 0 || region > 9) {
+        printf("Error: Invalid region selected.\n");
+        return 0;
+    }
+    // send message header
+    char header[11];
+    sprintf(header, "c%c%ld", region+'0', count);
+    send(clipboard_id, header, 10, 0);
+    return send(clipboard_id, buf, count, 0);
+}
 
-    return unix_stream_write(clipboard_id, buf, count);
+int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
+
+    char header[11];
+    sprintf(header, "p%c%ld", region+'0', count);
+    return send(clipboard_id, header, 10, 0);
 }
