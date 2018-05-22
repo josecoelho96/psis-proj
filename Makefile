@@ -10,4 +10,10 @@ clip: src/clip.c
 	$(CC) -o clipboard src/clip.c src/library.c $(CFLAGS)
 
 clean:
-	-rm -rf application clipboard CLIPBOARD_SOCKET
+	-rm -rf application clipboard CLIPBOARD_SOCKET clip1/ clip2/
+
+dual-clip:
+	mkdir -p clip1
+	mkdir -p clip2
+	cp clipboard clip1
+	cp clipboard clip2
