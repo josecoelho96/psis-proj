@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 #include "clipboard.h"
 
 int clipboard_connect(char *clipboard_dir) {
@@ -30,20 +31,63 @@ int clipboard_connect(char *clipboard_dir) {
 
 int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
 
+    char header[10];
+    int bytes_sent;
+
     if (region < 0 || region > 9) {
         printf("Error: Invalid region selected.\n");
         return 0;
     }
+
+    if (count <= 0) {
+        printf("You must copy a positive number of bytes.\n");
+        return 0;
+    }
     // send message header
-    char header[11];
+
     sprintf(header, "c%c%ld", region+'0', count);
-    send(clipboard_id, header, 10, 0);
-    return send(clipboard_id, buf, count, 0);
+    bytes_sent = send(clipboard_id, header, 10, 0);
+    printf("Clipboard_copy: size of header: %d\n", bytes_sent);
+    if (bytes_sent <= 0) {
+        printf("[DEBUG] Error sending header\n");
+        return 0;
+    }
+    bytes_sent = send(clipboard_id, buf, count, 0);
+    return bytes_sent > 0 ? bytes_sent : 0;
 }
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
 
-    char header[11];
+    char header[10];
+    char header_recv[9];
+    char dest[8];
+    int content_size;
+    int bytes_recv;
+
+    if (region < 0 || region > 9) {
+        printf("Error: Invalid region selected.\n");
+        return 0;
+    }
+
+    if (count <= 0) {
+        printf("You must paste a positive number of bytes.\n");
+        return 0;
+    }
+
     sprintf(header, "p%c%ld", region+'0', count);
-    return send(clipboard_id, header, 10, 0);
+    send(clipboard_id, header, 10, 0);
+    recv(clipboard_id, header_recv, 9, 0);
+
+    // TODO: change from int to size_t
+    strncpy(dest, &header_recv[1], 8);
+    content_size = atoi(dest);
+
+    printf("Received header: %.*s. Reading %d bytes.\n", 9, header_recv, content_size);
+
+    if (content_size == 0) {
+        printf("No data is present on the selected region.\n");
+        return 0;
+    }
+    bytes_recv = recv(clipboard_id, buf, content_size, 0);
+    return bytes_recv > 0 ? bytes_recv : 0;
 }

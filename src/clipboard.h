@@ -2,7 +2,7 @@
 
 typedef struct d_region {
     void *content;
-    int size;
+    size_t size;
 } data_region;
 
 int clipboard_connect(char *clipboard_dir);
