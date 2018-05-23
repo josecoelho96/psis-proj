@@ -10,6 +10,13 @@
 
 #include "clipboard.h"
 
+struct connection 
+{
+  int fd;
+  struct connection *next;
+};
+ 
+
 #define REGIONS_QUANTITY 10
 data_region regions[REGIONS_QUANTITY];
 
@@ -118,6 +125,9 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
     struct sockaddr_in clip_addr;
     pthread_t thr_id_conn_clip;
     socklen_t addrlen = sizeof(clip_addr);
+   
+    struct connection* new_fd = NULL;
+    new_fd = (struct connection*)malloc(sizeof(struct connection)); 
 
     printf("[DEBUG] New thread created (clipboard listening thread)\n");
     while(1) {
@@ -126,6 +136,7 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
             perror("Error [accept ls socket]");
             pthread_exit(NULL);
         }
+
         printf("[DEBUG] [Clipboard listening thread] New clipboard connecting...\n");
 
         // Create new thread for the newly connected app
@@ -135,6 +146,10 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
             pthread_exit(NULL);
         }
     }
+
+    new_fd->fd=clip_fd;
+
+
     return NULL;
 }
 
@@ -144,7 +159,7 @@ void *thr_code_recv_conn_clip(void *fd) {
     int nbytes;
 
     // printf("[DEBUG] New thread created (communication thread with clipboard)\n");
-    // printf("[DEBUG][App thread] Got a connection with an app...\n");
+    // printf("[DEBUG][Clipboard thread] Got a connection with an clipboard...\n");
     while(1) {
 
         nbytes = recv(*(int *)fd, buf, buf_len, 0);
@@ -284,6 +299,7 @@ int main(int argc, char **argv) {
             regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
         }
         sleep(1);
+
     }
 
     // close UNIX socket
