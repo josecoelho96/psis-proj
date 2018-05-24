@@ -10,23 +10,27 @@
 
 #include "clipboard.h"
 
-struct connection 
-{
+typedef struct d_region {
+    void *content;
+    size_t size;
+} data_region;
+
+typedef struct connection {
   int fd;
   struct connection *next;
-};
- 
+} connection_t;
 
 #define REGIONS_QUANTITY 10
 data_region regions[REGIONS_QUANTITY];
+connection_t *clip_connections = NULL;
 
 void ctrl_c_callback_handler(int signum);
-void *thr_code_recv_conn_loc_app(void *fd);
 void *thr_code_recv_conn_app(void *fd);
+void *thr_code_recv_data_app(void *fd);
 void *thr_code_recv_conn_rem_clip(void *fd);
 void *thr_code_recv_conn_clip(void *fd);
 
-void *thr_code_recv_conn_loc_app(void *fd) {
+void *thr_code_recv_conn_app(void *fd) {
 
     int app_fd = 0;
     struct sockaddr_un app_addr;
@@ -44,7 +48,7 @@ void *thr_code_recv_conn_loc_app(void *fd) {
 
         // Create new thread for the newly connected app
         // TODO: all pthread_t should be saved (?)
-        if (pthread_create(&thr_id_conn_app, NULL, thr_code_recv_conn_app, &app_fd) != 0) {
+        if (pthread_create(&thr_id_conn_app, NULL, thr_code_recv_data_app, &app_fd) != 0) {
             perror("Error [pthread_create]");
             pthread_exit(NULL);
         }
@@ -52,7 +56,7 @@ void *thr_code_recv_conn_loc_app(void *fd) {
     return NULL;
 }
 
-void *thr_code_recv_conn_app(void *fd) {
+void *thr_code_recv_data_app(void *fd) {
     int buf_len = 10;
     char buf[buf_len];
     int nbytes;
@@ -125,9 +129,8 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
     struct sockaddr_in clip_addr;
     pthread_t thr_id_conn_clip;
     socklen_t addrlen = sizeof(clip_addr);
-   
-    struct connection* new_fd = NULL;
-    new_fd = (struct connection*)malloc(sizeof(struct connection)); 
+    connection_t *new_connection = NULL;
+
 
     printf("[DEBUG] New thread created (clipboard listening thread)\n");
     while(1) {
@@ -141,15 +144,20 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
 
         // Create new thread for the newly connected app
         // TODO: all pthread_t should be saved (?)
+        if ((new_connection = (connection_t*)malloc(sizeof(connection_t))) == NULL) {
+            perror("Error [malloc]");
+            pthread_exit(NULL);
+        };
+
+        new_connection->fd = clip_fd;
+        new_connection->next = clip_connections;
+        clip_connections = new_connection;
+
         if (pthread_create(&thr_id_conn_clip, NULL, thr_code_recv_conn_clip, &clip_fd) != 0) {
             perror("Error [pthread_create]");
             pthread_exit(NULL);
         }
     }
-
-    new_fd->fd=clip_fd;
-
-
     return NULL;
 }
 
@@ -230,7 +238,7 @@ int main(int argc, char **argv) {
 
     // printf("[DEBUG] Ready to listen.\n");
 
-    if (pthread_create(&thr_id_recv_conn_loc_app, NULL, thr_code_recv_conn_loc_app, &app_ls_fd) != 0) {
+    if (pthread_create(&thr_id_recv_conn_loc_app, NULL, thr_code_recv_conn_app, &app_ls_fd) != 0) {
         perror("Error [pthread_create]");
         exit(-1);
     }
