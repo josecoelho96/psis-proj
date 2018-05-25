@@ -107,10 +107,12 @@ void *thr_code_recv_data_app(void *fd) {
 
             printf("[DEBUG] Received %ld bytes\n", nbytes);
             // TODO: DEBUG: HERE!!!!
-            // // TODO: Only free if new content is bigger
-            // regions[region].size = content_size;
-            // free(regions[region].content);
-            // regions[region].content = content;
+            if (regions[header.region].size > header.count)
+            {
+                free(regions[header.region].content);
+            }
+            regions[header.region].size = header.count;
+            regions[header.region].content = content;
 
             // if (clip_connections != NULL) {
             //     // send messages to other clipboards.
@@ -126,7 +128,6 @@ void *thr_code_recv_data_app(void *fd) {
             //         aux = aux->next;
             //     }
             // }
-
         } else if (header.operation == OPERATION_PASTE) {
             printf("[DEBUG] Operation: Paste\n");
 
@@ -195,7 +196,7 @@ void *thr_code_recv_data_clip(void *fd) {
     int nbytes;
     char dest[8];
     int content_size;
-    int region = 0;
+    //int region = 0;
 
     printf("[DEBUG][Clipboard thread] Got a connection with an clipboard...\n");
 
@@ -211,7 +212,7 @@ void *thr_code_recv_data_clip(void *fd) {
 
         strncpy(dest, &buf[2], 8);
         content_size = atoi(dest);
-        region = buf[1] - '0';
+        //region = buf[1] - '0';
 
         printf("Reading %d bytes\n", content_size);
 
@@ -366,11 +367,11 @@ int main(int argc, char **argv) {
     // logic goes here
     while(1) {
 
-        // printf("[DEBUG] [Clipboard main thread] Regions information\n");
-        // for (int i = 0; i < REGIONS_QUANTITY; i++) {
-        //     printf("Region: %d | size: %ld | content: ", i, regions[i].size);
-        //     regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
-        // }
+        printf("[DEBUG] [Clipboard main thread] Regions information\n");
+        for (int i = 0; i < REGIONS_QUANTITY; i++) {
+            printf("Region: %d | size: %ld | content: ", i, regions[i].size);
+            regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
+        }
 
         sleep(1);
     }

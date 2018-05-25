@@ -60,7 +60,9 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
 
-    char header[10];
+    char header_msg[sizeof(header_t)];
+    header_t header;
+
     char header_recv[9];
     char dest[8];
     int content_size;
@@ -76,8 +78,14 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
         return 0;
     }
 
-    sprintf(header, "p%c%ld", region+'0', count);
-    send(clipboard_id, header, 10, 0);
+
+    // send message header
+    header.operation = OPERATION_PASTE;
+    header.region = region;
+    header.count = count;
+    memcpy(header_msg, &header, sizeof(header_t));
+
+    send(clipboard_id, header_msg, sizeof(header_t), 0);
     recv(clipboard_id, header_recv, 9, 0);
 
     // TODO: change from int to size_t
