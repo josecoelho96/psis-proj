@@ -68,7 +68,7 @@ void *thr_code_recv_data_app(void *fd) {
     // int buf_len = 10;
     // char buf[buf_len];
 
-    // size_t bytes_paste;
+    size_t bytes_paste;
 
     // char dest[8];
     // int content_size;
@@ -134,11 +134,16 @@ void *thr_code_recv_data_app(void *fd) {
             // printf("[DEBUG] Paste %d bytes (max) from region %d\n", content_size, region);
             // printf("[DEBUG] Actual region data size: %ld\n", regions[region].size);
 
-            // bytes_paste = regions[region].size > content_size ? content_size : regions[region].size;
-            // printf("[DEBUG] Actual paste: %ld\n", bytes_paste);
-            // sprintf(header, "p%ld", bytes_paste);
-            // send(*(int *)fd, header, 9, 0);
-            // send(*(int *)fd, regions[region].content, bytes_paste, 0);
+             bytes_paste = regions[header.region].size > header.count ? header.count : regions[header.region].size;
+             printf("[DEBUG] Actual paste: %ld\n", bytes_paste);
+
+             header.count = bytes_paste;
+
+             memcpy(header_msg, &header, sizeof(header_t));
+
+             send(*(int *)fd, header_msg, sizeof(header_t), 0);
+             send(*(int *)fd, regions[header.region].content, bytes_paste, 0);
+
         } else if (header.operation == OPERATION_WAIT) {
             printf("[DEBUG][TODO:] Operation: Wait\n");
         } else {
