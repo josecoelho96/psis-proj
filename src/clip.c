@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
@@ -28,11 +29,12 @@ void ctrl_c_callback_handler(int signum);
 void *thr_code_recv_conn_app(void *fd);
 void *thr_code_recv_data_app(void *fd);
 void *thr_code_recv_conn_rem_clip(void *fd);
-void *thr_code_recv_conn_clip(void *fd);
+void *thr_code_recv_data_clip(void *fd);
+void *thr_code_recv_data_clip_client(void *fd);
 
 void *thr_code_recv_conn_app(void *fd) {
 
-    int app_fd = 0;
+    int app_fd;
     struct sockaddr_un app_addr;
     pthread_t thr_id_conn_app;
     socklen_t addrlen = sizeof(app_addr);
@@ -57,64 +59,87 @@ void *thr_code_recv_conn_app(void *fd) {
 }
 
 void *thr_code_recv_data_app(void *fd) {
-    int buf_len = 10;
-    char buf[buf_len];
-    int nbytes;
-    size_t bytes_paste;
+
+    size_t nbytes;
+    char header_msg[sizeof(header_t)];
+    header_t header;
     char *content = NULL;
-    char dest[8];
-    int content_size;
-    int region;
-    char header[10];
+
+    // int buf_len = 10;
+    // char buf[buf_len];
+
+    // size_t bytes_paste;
+
+    // char dest[8];
+    // int content_size;
+    // int region;
+    // char header_str[10];
+    // connection_t *aux;
 
     // printf("[DEBUG] New thread created (communication thread)\n");
     // printf("[DEBUG][App thread] Got a connection with an app...\n");
     while(1) {
 
-        nbytes = recv(*(int *)fd, buf, buf_len, 0);
+        nbytes = recv(*(int *)fd, header_msg, sizeof(header_t), 0);
         if (nbytes == -1 || nbytes == 0) {
             printf("Error reading from app or app closed!\n");
             pthread_exit(NULL);
         } else {
-            printf("[DEBUG] Received header '%s' (%d bytes) from app.\n", buf, nbytes);
+            printf("[DEBUG] Received header (%ld bytes) from app.\n", nbytes);
         }
+        memcpy(&header, header_msg, sizeof(header_t));
 
-        // TODO: change from int to size_t
-        strncpy(dest, &buf[2], 8);
-        content_size = atoi(dest);
-        region = buf[1] - '0';
+        printf("[DEBUG] Operation: %c\n", header.operation);
+        printf("[DEBUG] Region: %d\n", header.region);
+        printf("[DEBUG] Length: %ld\n", header.count);
 
-        // printf("[DEBUG] Operation: %c\n", buf[0]);
-        // printf("[DEBUG] Region: %d\n", region);
-        // printf("[DEBUG] Length: %d\n",content_size);
+        if (header.operation == OPERATION_COPY) {
+            printf("[DEBUG] Operation: Copy\n");
 
-        if ((content = (char *)malloc(content_size * sizeof(char))) == NULL) {
-            perror("Error [malloc]");
-            pthread_exit(NULL);
-        }
+            if ((content = (char *)malloc(header.count * sizeof(char))) == NULL) {
+                perror("Error [malloc]");
+                // pthread_exit(NULL);
+            }
+            nbytes = 0;
+            while(nbytes < header.count) {
+                nbytes += recv(*(int *)fd, &(content[nbytes]), header.count, 0);
+            }
 
-        if (buf[0] == 'c') {
+            printf("[DEBUG] Received %ld bytes\n", nbytes);
+            // TODO: DEBUG: HERE!!!!
+            // // TODO: Only free if new content is bigger
+            // regions[region].size = content_size;
+            // free(regions[region].content);
+            // regions[region].content = content;
 
-            nbytes = recv(*(int *)fd, content, content_size, 0);
+            // if (clip_connections != NULL) {
+            //     // send messages to other clipboards.
+            //     printf("Sending messages is a must\n");
+            //     buf[0] = 'u'; //change to update
+            //     aux = clip_connections;
+            //     while(aux!=NULL) {
+            //         //send to other clipboards
+            //         printf("Sending %.*s to: %d\n", 10, buf, aux->fd);
+            //         if (aux->fd > 0) {
+            //             send(aux->fd, buf, 10, 0);
+            //         }
+            //         aux = aux->next;
+            //     }
+            // }
 
-            // printf("[DEBUG] Received: %.*s\n", content_size, content);
+        } else if (header.operation == OPERATION_PASTE) {
+            printf("[DEBUG] Operation: Paste\n");
 
-            // TODO: Only free if new content is bigger
-            regions[region].size = content_size;
-            free(regions[region].content);
-            regions[region].content = content;
+            // printf("[DEBUG] Paste %d bytes (max) from region %d\n", content_size, region);
+            // printf("[DEBUG] Actual region data size: %ld\n", regions[region].size);
 
-        } else if (buf[0] == 'p') {
-            printf("[DEBUG] Paste %d bytes (max) from region %d\n", content_size, region);
-            printf("[DEBUG] Actual region data size: %ld\n", regions[region].size);
-
-            bytes_paste = regions[region].size > content_size ? content_size : regions[region].size;
-            printf("[DEBUG] Actual paste: %ld\n", bytes_paste);
-            sprintf(header, "p%ld", bytes_paste);
-            send(*(int *)fd, header, 9, 0);
-            send(*(int *)fd, regions[region].content, bytes_paste, 0);
-        } else if (buf[0] == 'w') {
-            printf("TODO: wait\n");
+            // bytes_paste = regions[region].size > content_size ? content_size : regions[region].size;
+            // printf("[DEBUG] Actual paste: %ld\n", bytes_paste);
+            // sprintf(header, "p%ld", bytes_paste);
+            // send(*(int *)fd, header, 9, 0);
+            // send(*(int *)fd, regions[region].content, bytes_paste, 0);
+        } else if (header.operation == OPERATION_WAIT) {
+            printf("[DEBUG][TODO:] Operation: Wait\n");
         } else {
             printf("Invalid operation!\n");
             continue;
@@ -140,20 +165,23 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
             pthread_exit(NULL);
         }
 
-        printf("[DEBUG] [Clipboard listening thread] New clipboard connecting...\n");
+        printf("[DEBUG] [Clipboard listening thread] New clipboard connecting (fd: %d)\n", clip_fd);
 
-        // Create new thread for the newly connected app
-        // TODO: all pthread_t should be saved (?)
+
         if ((new_connection = (connection_t*)malloc(sizeof(connection_t))) == NULL) {
             perror("Error [malloc]");
             pthread_exit(NULL);
         };
 
+        // add new connection to list
+        // TODO: Improve: Check if some node is invalid.
         new_connection->fd = clip_fd;
         new_connection->next = clip_connections;
         clip_connections = new_connection;
 
-        if (pthread_create(&thr_id_conn_clip, NULL, thr_code_recv_conn_clip, &clip_fd) != 0) {
+        // Create new thread for the newly connected app
+        // TODO: all pthread_t should be saved (?)
+        if (pthread_create(&thr_id_conn_clip, NULL, thr_code_recv_data_clip, &clip_fd) != 0) {
             perror("Error [pthread_create]");
             pthread_exit(NULL);
         }
@@ -161,16 +189,46 @@ void *thr_code_recv_conn_rem_clip(void *fd) {
     return NULL;
 }
 
-void *thr_code_recv_conn_clip(void *fd) {
+void *thr_code_recv_data_clip(void *fd) {
     int buf_len = 10;
     char buf[buf_len];
     int nbytes;
+    char dest[8];
+    int content_size;
+    int region = 0;
 
-    // printf("[DEBUG] New thread created (communication thread with clipboard)\n");
-    // printf("[DEBUG][Clipboard thread] Got a connection with an clipboard...\n");
+    printf("[DEBUG][Clipboard thread] Got a connection with an clipboard...\n");
+
     while(1) {
-
         nbytes = recv(*(int *)fd, buf, buf_len, 0);
+        printf("[DEBUG] Received header from other clipboard (on TCP server).\n");
+        if (nbytes == -1 || nbytes == 0) {
+            printf("Error reading from clipboard or clipboard closed!\n");
+            pthread_exit(NULL);
+        } else {
+            printf("[DEBUG] Received header '%.*s' (%d bytes) from clipboard.\n", buf_len, buf, nbytes);
+        }
+
+        strncpy(dest, &buf[2], 8);
+        content_size = atoi(dest);
+        region = buf[1] - '0';
+
+        printf("Reading %d bytes\n", content_size);
+
+    }
+    return NULL;
+}
+
+void *thr_code_recv_data_clip_client(void *fd) {
+
+    printf("[DEBUG] New thread created (tcp client comm)\n");
+    int nbytes;
+    int buf_len = 10;
+    char buf[buf_len];
+
+    while(1) {
+        nbytes = recv(*(int *)fd, buf, buf_len, 0);
+        printf("[DEBUG] Received header from other clipboard (on TCP client).\n");
         if (nbytes == -1 || nbytes == 0) {
             printf("Error reading from clipboard or clipboard closed!\n");
             pthread_exit(NULL);
@@ -199,6 +257,7 @@ int main(int argc, char **argv) {
     int client_clipboard_fd;
     pthread_t thr_id_recv_conn_loc_app;
     pthread_t thr_id_recv_conn_rem_clip;
+    pthread_t thr_id_recv_client_clip;
 
 	signal(SIGINT, ctrl_c_callback_handler);
 
@@ -297,17 +356,23 @@ int main(int argc, char **argv) {
             perror("Error [connect]");
             exit(-1);
         }
+
+        if (pthread_create(&thr_id_recv_client_clip, NULL, thr_code_recv_data_clip_client, &client_clipboard_fd) != 0) {
+           perror("Error [pthread_create]");
+            exit(-1);
+        }
     }
 
     // logic goes here
     while(1) {
-        printf("[DEBUG] [Clipboard main thread] Regions information\n");
-        for (int i = 0; i < REGIONS_QUANTITY; i++) {
-            printf("Region: %d | size: %ld | content: ", i, regions[i].size);
-            regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
-        }
-        sleep(1);
 
+        // printf("[DEBUG] [Clipboard main thread] Regions information\n");
+        // for (int i = 0; i < REGIONS_QUANTITY; i++) {
+        //     printf("Region: %d | size: %ld | content: ", i, regions[i].size);
+        //     regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
+        // }
+
+        sleep(1);
     }
 
     // close UNIX socket

@@ -8,8 +8,7 @@ int main(int argc, char **argv) {
     int fd;
     int cmdline_len = 100;
     char cmdline_buf[100];
-    int buf_len = 1000000;
-    char buf[buf_len];
+    char *buf;
     int recv_buf_len = 100;
     char *recv_buf;
     int region_number;
@@ -30,9 +29,23 @@ int main(int argc, char **argv) {
                 printf("Invalid region\n");
                 continue;
             }
-            printf("Data: ");
-            fgets(buf, buf_len, stdin);
-            data_length = strlen(buf) - 1; //Remove '\n' char
+            printf("Data length (random data): ");
+            fgets(cmdline_buf, cmdline_len, stdin);
+            if (sscanf(cmdline_buf, "%d", &data_length) != 1 || data_length <= 0) {
+                printf("Invalid data size\n");
+                continue;
+            }
+
+            if ((buf = (char *)malloc(data_length * sizeof(char))) == NULL) {
+                printf("Error allocating memory\n");
+                continue;
+            }
+
+            for (int i = 0; i < data_length; i++) {
+                buf[i] = (rand()%10) + '0';
+            }
+
+            printf("Sending %d bytes...\n", data_length);
 
             if ((bytes_sent = clipboard_copy(fd, region_number, buf, data_length)) == 0) {
                 printf("Error copying to clipboard.\n");
