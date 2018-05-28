@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
     int region_number;
     int data_length;
     int bytes_sent;
+    char c;
 
     if ((fd = clipboard_connect(argv[1])) == -1) {
         exit(-1);
@@ -29,7 +30,7 @@ int main(int argc, char **argv) {
                 printf("Invalid region\n");
                 continue;
             }
-            printf("Data length (random data): ");
+            printf("Data length: ");
             fgets(cmdline_buf, cmdline_len, stdin);
             if (sscanf(cmdline_buf, "%d", &data_length) != 1 || data_length <= 0) {
                 printf("Invalid data size\n");
@@ -41,8 +42,11 @@ int main(int argc, char **argv) {
                 continue;
             }
 
+            printf("Character: ");
+            c = getchar();
+
             for (int i = 0; i < data_length; i++) {
-                buf[i] = (rand()%10) + '0';
+                buf[i] = c;
             }
 
             printf("Sending %d bytes...\n", data_length);
