@@ -4,7 +4,7 @@ default: all
 all: app clip
 
 app: src/app.c
-	$(CC) -o application src/app.c src/library.c src/communication.c $(CFLAGS)
+	$(CC) -o application src/app.c src/library.c src/communication.c src/protocol.c $(CFLAGS)
 
 clip: src/clip.c
 	$(CC) -o clipboard src/clip.c src/communication.c src/threads.c src/protocol.c $(CFLAGS)
