@@ -60,42 +60,13 @@ int stream_unix_accept(int fd, struct sockaddr_un *addr) {
     return new_fd;
 }
 
-int stream_unix_recv(int fd, char *buf, size_t count) {
+int close_stream_unix(char *dir) {
 
-    size_t bytes_recv = 0;
-    size_t total_bytes_recv = 0;
-
-    while(total_bytes_recv < count) {
-        bytes_recv = recv(fd, buf, count, 0);
-        if (bytes_recv == -1) {
-            printf("Error reading!\n");
-            return -1;
-        } else if (bytes_recv == 0) {
-            printf("Peer has shutdown!\n");
-            return 0;
-        }
-        total_bytes_recv += bytes_recv;
+    if (unlink(dir) == -1) {
+        perror("Error [unlink]");
+        return -1;
     }
-    return 1;
-}
-
-int stream_unix_send(int fd, char *buf, size_t count) {
-
-    size_t bytes_sent = 0;
-    size_t total_bytes_sent = 0;
-
-    while(total_bytes_sent < count) {
-        bytes_sent = send(fd, buf, count, 0);
-        if (bytes_sent == -1) {
-            printf("Error sending!\n");
-            return -1;
-        } else if (bytes_sent == 0) {
-            printf("Peer has shutdown!\n");
-            return 0;
-        }
-        total_bytes_sent += bytes_sent;
-    }
-    return 1;
+    return 0;
 }
 
 int init_tcp_sv(int *fd, struct sockaddr_in *addr, int port) {
@@ -148,6 +119,17 @@ int init_tcp_client(int *fd, struct sockaddr_in *addr, char *ip, int port) {
     return 0;
 }
 
+int tcp_accept(int fd, struct sockaddr_in *addr) {
+    int new_fd;
+
+    socklen_t addrlen = sizeof(*addr);
+    if ((new_fd = accept(fd, (struct sockaddr*)addr, &addrlen)) == -1) {
+        perror("Error [accept]");
+        return -1;
+    }
+    return new_fd;
+}
+
 int tcp_get_port(int fd, int *port) {
 
     struct sockaddr_in addr;
@@ -162,22 +144,40 @@ int tcp_get_port(int fd, int *port) {
     }
 }
 
-int close_stream_unix(char *dir) {
+int recv_data(int fd, char *buf, size_t count) {
 
-    if (unlink(dir) == -1) {
-        perror("Error [unlink]");
-        return -1;
+    size_t bytes_recv = 0;
+    size_t total_bytes_recv = 0;
+
+    while(total_bytes_recv < count) {
+        bytes_recv = recv(fd, buf, count, 0);
+        if (bytes_recv == -1) {
+            perror("Error [recv]");
+            return -1;
+        } else if (bytes_recv == 0) {
+            printf("Peer has shutdown!\n");
+            return 0;
+        }
+        total_bytes_recv += bytes_recv;
     }
-    return 0;
+    return 1;
 }
 
-int tcp_accept(int fd, struct sockaddr_in *addr) {
-    int new_fd;
+int send_data(int fd, char *buf, size_t count) {
 
-    socklen_t addrlen = sizeof(*addr);
-    if ((new_fd = accept(fd, (struct sockaddr*)addr, &addrlen)) == -1) {
-        perror("Error [accept]");
-        return -1;
+    size_t bytes_sent = 0;
+    size_t total_bytes_sent = 0;
+
+    while(total_bytes_sent < count) {
+        bytes_sent = send(fd, buf, count, 0);
+        if (bytes_sent == -1) {
+            perror("Error [send]");
+            return -1;
+        } else if (bytes_sent == 0) {
+            printf("Peer has shutdown!\n");
+            return 0;
+        }
+        total_bytes_sent += bytes_sent;
     }
-    return new_fd;
+    return 1;
 }

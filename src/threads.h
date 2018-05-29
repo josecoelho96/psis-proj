@@ -4,25 +4,35 @@
 typedef struct recv_conn_app_args {
     int fd;
     int *parent_clip_fd;
+    void *children_clip_connections;
     void *regions;
 } recv_conn_app_args_t;
 
 typedef struct recv_data_app_args {
     int fd;
     int *parent_clip_fd;
+    void *children_clip_connections;
     void *regions;
 } recv_data_app_args_t;
 
 typedef struct recv_conn_clip_args {
     int fd;
+    void *children_connections;
+    int *parent_clip_fd;
+    void *regions;
 } recv_conn_clip_args_t;
 
 typedef struct recv_data_clip_args {
     int fd;
+    void *regions;
+    void *children_connections;
+    int *parent_clip_fd;
 } recv_data_clip_args_t;
 
 typedef struct recv_data_parent_clip_args {
     int fd;
+    void *regions;
+    void *children_clip_connections;
 } recv_data_parent_clip_args_t;
 
 void *recv_conn_app(void *arg);

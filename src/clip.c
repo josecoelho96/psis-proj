@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -10,7 +11,6 @@
 #include "threads.h"
 
 #define CLIP_SOCK_NAME "CLIPBOARD_SOCKET"
-#define REGIONS_QUANTITY 10
 
 void sign_interrupt_handler(int signum);
 
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
         printf("Usage: clipboard [-c ip port]\n");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] Correct number of arguments.\n");
+    // printf("[DEBUG][Main Thread] Correct number of arguments.\n");
 
     // Initialize regions
     for (int i = 0; i < REGIONS_QUANTITY; i++) {
@@ -56,23 +56,23 @@ int main(int argc, char **argv) {
         printf("Error initializing unix stream server.\n");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] Unix stream server created.\n");
+    // printf("[DEBUG][Main Thread] Unix stream server created.\n");
 
     recv_conn_app_args.fd = app_ls_fd;
     recv_conn_app_args.parent_clip_fd = &parent_clip_fd;
     recv_conn_app_args.regions = regions;
+    recv_conn_app_args.children_clip_connections = &children_connections;
     if (pthread_create(&recv_conn_app_id, NULL, recv_conn_app, &recv_conn_app_args) != 0) {
         perror("Error [pthread_create]");
         exit(-1);
     }
-    printf("[DEBUG]Parent clip fd: %d\n", parent_clip_fd);
-    printf("[DEBUG][Main Thread] recv_conn_app thread created.\n");
+    // printf("[DEBUG][Main Thread] recv_conn_app thread created.\n");
 
     if (init_tcp_sv(&clip_ls_fd, &sv_clip_addr, 0) == -1) {
         printf("Error initializing TCP server.\n");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] TCP server created.\n");
+    // printf("[DEBUG][Main Thread] TCP server created.\n");
 
     // print port to terminal
     if (tcp_get_port(clip_ls_fd, &sv_clip_port) == -1) {
@@ -82,43 +82,50 @@ int main(int argc, char **argv) {
     printf("TCP server port: %d\n", sv_clip_port);
 
     recv_conn_clip_args.fd = clip_ls_fd;
+    recv_conn_clip_args.children_connections = &children_connections;
+    recv_conn_clip_args.regions = regions;
+    recv_conn_clip_args.parent_clip_fd = &parent_clip_fd;
     if (pthread_create(&recv_conn_clip_id, NULL, recv_conn_clip, &recv_conn_clip_args) != 0) {
         perror("Error [pthread_create]");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] recv_conn_clip thread created.\n");
+    // printf("[DEBUG][Main Thread] recv_conn_clip thread created.\n");
 
     // Connected mode: Create tcp client and connect to remote clipboard
-    if (argc == 4) {
-        printf("[DEBUG] Connect to remote clipboard!\n");
-        printf("[DEBUG] Remote clipboard IP: %s\n", argv[2]);
-        printf("[DEBUG] Remote clipboard port: %d\n", atoi(argv[3]));
+    if (argc == 4 && strcmp(argv[1], "-c") == 0) {
+        // printf("[DEBUG] Connect to remote clipboard!\n");
+        // printf("[DEBUG] Remote clipboard IP: %s\n", argv[2]);
+        // printf("[DEBUG] Remote clipboard port: %d\n", atoi(argv[3]));
 
         if (init_tcp_client(&parent_clip_fd, &parent_clip_addr, argv[2], atoi(argv[3])) == -1) {
             printf("Error initializing TCP client.\n");
             exit(-1);
         }
-        printf("[DEBUG][Main Thread] TCP client created.\n");
+        // printf("[DEBUG][Main Thread] TCP client created.\n");
 
         recv_data_parent_clip_args.fd = parent_clip_fd;
+        recv_data_parent_clip_args.regions = regions;
+        recv_data_parent_clip_args.children_clip_connections = &children_connections;
         if (pthread_create(&recv_data_parent_clip_id, NULL, recv_data_parent_clip, &recv_data_parent_clip_args) != 0) {
             perror("Error [pthread_create]");
             exit(-1);
         }
-        printf("[DEBUG][Main Thread] recv_data_parent_clip thread created.\n");
+        // printf("[DEBUG][Main Thread] recv_data_parent_clip thread created.\n");
     }
-    printf("[DEBUG]Parent clip fd: %d\n", parent_clip_fd);
+    printf("[DEBUG][main] Parent clip fd: %d\n", parent_clip_fd);
 
     while(!shutdown_clipboard) {
-
-        printf("[DEBUG][Main Thread] Regions information:\n");
-        // for (int i = 0; i < REGIONS_QUANTITY; i++) {
-        //     // printf("Region: %d | size: %ld \n", i, regions[i].size);
-        //     printf("Region: %d | size: %ld | content: ", i, regions[i].size);
-        //     regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
-        // }
-
-        sleep(1);
+        printf("[DEBUG] --\n");
+        // printf("[DEBUG] &regions = %p\n", (void *)&regions);
+        // printf("[DEBUG][main] children_connections [connection_t *]: %p\n", (void *)children_connections);
+        // printf("[DEBUG][main] children_connections [connection_t **]: %p\n", (void *)&children_connections);
+        // printf("[DEBUG][Main Thread] Regions information:\n");
+        for (int i = 0; i < REGIONS_QUANTITY; i++) {
+            // printf("Region: %d | size: %ld \n", i, regions[i].size);
+            printf("Region: %d | size: %ld | content: ", i, regions[i].size);
+            regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
+        }
+        sleep(2);
     }
 
     printf("[DEBUG] Shuting down clipboard\n");
