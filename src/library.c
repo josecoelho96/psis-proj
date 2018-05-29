@@ -25,9 +25,8 @@ int clipboard_connect(char *clipboard_dir) {
 
 int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
 
-    char header_msg[sizeof(header_t)];
-    size_t bytes_sent;
     header_t header;
+    int ret_val;
 
     if (region < 0 || region > 9) {
         printf("Error: Invalid region selected.\n");
@@ -38,18 +37,21 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
         printf("You must copy a positive number of bytes.\n");
         return 0;
     }
-    // send message header
+
     header.operation = OPERATION_COPY;
     header.region = region;
     header.count = count;
-    memcpy(header_msg, &header, sizeof(header_t));
-    bytes_sent = send(clipboard_id, header_msg, sizeof(header_t), 0);
-    if (bytes_sent <= 0) {
-        printf("[DEBUG] Error sending header\n");
+
+    if (send_header(clipboard_id, header) == -1) {
+        printf("Error sending header.\n");
         return 0;
     }
-    bytes_sent = send(clipboard_id, buf, count, 0);
-    return bytes_sent > 0 ? bytes_sent : 0;
+
+    if ((ret_val = send_content(clipboard_id, buf, count)) == -1) {
+        printf("Error sending content.\n");
+        return 0;
+    }
+    return ret_val;
 }
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {

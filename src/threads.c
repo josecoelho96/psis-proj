@@ -41,13 +41,15 @@ void *recv_data_app(void *arg) {
 
     recv_data_app_args_t *args = arg;
     header_t header;
-    connection_t **clip_children = (connection_t **)(args->children_clip_connections);
+    connection_t **clip_children = (connection_t **)args->children_clip_connections;
+    data_region_t *regions = (data_region_t *)args->regions;
+    char *content;
 
     printf("[DEBUG][recv_data_app] New app thread (fd: %d)\n", args->fd);
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) != 0) {
+        if (recv_header(args->fd, &header) <= 0) {
             // TODO: Handle return
             printf("Error when reading header from app.\n");
             pthread_exit(NULL);
@@ -56,29 +58,35 @@ void *recv_data_app(void *arg) {
         if (header.operation == OPERATION_COPY ) {
             printf("[DEBUG][recv_data_app] Operation: Copy\n");
 
-            if (recv_content(args->fd, header, args->regions) != 0) {
+            if (recv_content(args->fd, &content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from app.\n");
                 pthread_exit(NULL);
             }
+
+            // Update region
+            // TODO: Mutexes ....
+            update_region(content, header.count, &(regions[header.region]));
+            printf("[DEBUG][recv_data_app] Operation: %c.\n", header.operation);
+            printf("[DEBUG][recv_data_app] Region: %d.\n", header.region);
+            printf("[DEBUG][recv_data_app] Count: %ld.\n", header.count);
+
             // Update all other clipboards connected
             header.operation = OPERATION_UPDATE;
 
             if (*(args->parent_clip_fd) != -1) {
                 // Not the root, send to parent
                 printf("[DEBUG][recv_data_app] (%d) Not root. Send new content to parent\n", *(args->parent_clip_fd));
-
-                if (send_message(*(args->parent_clip_fd), header, args->regions) != 0 ) {
+                if (send_message(*(args->parent_clip_fd), header, regions[header.region]) == -1 ) {
                     // TODO: Handle return
                     printf("Error when sending message to parent clipboard.\n");
                     pthread_exit(NULL);
                 }
-
             } else {
                 // Root, send to children, if any
                 printf("[DEBUG][recv_data_app] (%d) Root. Send new content to children\n", *(args->parent_clip_fd));
 
-                if (update_children(*clip_children, header, args->regions) != 0 ) {
+                if (update_children(*clip_children, header, regions[header.region]) == -1 ) {
                     // TODO: Handle return
                     printf("Error when sending updates to children.\n");
                     pthread_exit(NULL);
@@ -161,46 +169,49 @@ void *recv_data_clip(void *arg) {
     recv_data_clip_args_t *args = arg;
     header_t header;
     connection_t **children = (connection_t **)args->children_connections;
+    data_region_t *regions = (data_region_t *)args->regions;
+    char *content;
 
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) != 0) {
+        if (recv_header(args->fd, &header) <= 0) {
             // TODO: Handle return
             printf("Error when reading header from clipboard.\n");
             pthread_exit(NULL);
         }
-        printf("[DEBUG][recv_data_clip] Received header from child.\n");
-        printf("[DEBUG][recv_data_clip] Operation: %c.\n", header.operation);
-        printf("[DEBUG][recv_data_clip] Region: %d.\n", header.region);
-        printf("[DEBUG][recv_data_clip] Count: %ld.\n", header.count);
+        // printf("[DEBUG][recv_data_clip] Received header from child.\n");
+        // printf("[DEBUG][recv_data_clip] Operation: %c.\n", header.operation);
+        // printf("[DEBUG][recv_data_clip] Region: %d.\n", header.region);
+        // printf("[DEBUG][recv_data_clip] Count: %ld.\n", header.count);
 
         if (header.operation == OPERATION_UPDATE) {
             printf("[DEBUG][recv_data_clip] Operation: UPDATE.\n");
             // receive content from parent and update regions
-            if (recv_content(args->fd, header, args->regions) != 0) {
+            if (recv_content(args->fd, &content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from clipboard.\n");
                 pthread_exit(NULL);
             }
             // printf("[DEBUG][recv_data_clip]Content received.\n");
 
+            // Update region
+            // TODO: Mutexes ....
+            update_region(content, header.count, &(regions[header.region]));
             // Not root, send content to parent
             if (*(args->parent_clip_fd) != -1) {
                 // Not the root, send to parent
                 printf("[DEBUG][recv_data_clip] Not root. Send new content to parent\n");
-
-                if (send_message(*(args->parent_clip_fd), header, args->regions) != 0 ) {
+                if (send_message(*(args->parent_clip_fd), header, regions[header.region]) == -1 ) {
                     // TODO: Handle return
                     printf("Error when sending message to parent clipboard.\n");
                     pthread_exit(NULL);
                 }
-
             } else {
                 // Root, send to children, if any
                 printf("[DEBUG][recv_data_clip] Root. Send new content to children\n");
 
-                if (update_children(*children, header, args->regions) != 0 ) {
+                if (update_children(*children, header, regions[header.region]) == -1 ) {
                     // TODO: Handle return
                     printf("Error when sending updates to children.\n");
                     pthread_exit(NULL);
@@ -218,26 +229,32 @@ void *recv_data_parent_clip(void *arg) {
     recv_data_parent_clip_args_t *args = arg;
     connection_t **clip_children = (connection_t **)(args->children_clip_connections);
     header_t header;
+    data_region_t *regions = (data_region_t *)args->regions;
+    char *content;
 
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) != 0) {
+        if (recv_header(args->fd, &header) <= 0) {
             // TODO: Handle return
-            printf("Error when reading header from app.\n");
+            printf("Error when reading header parent clipboard.\n");
             pthread_exit(NULL);
         }
         printf("[DEBUG][recv_data_parent_clip] Received header from parent.\n");
+        printf("[DEBUG][recv_data_parent_clip] Operation: %c.\n", header.operation);
+        printf("[DEBUG][recv_data_parent_clip] Region: %d.\n", header.region);
+        printf("[DEBUG][recv_data_parent_clip] Count: %ld.\n", header.count);
 
         if (header.operation == OPERATION_UPDATE) {
             // receive content from parent and update regions
-            if (recv_content(args->fd, header, args->regions) != 0) {
+            if (recv_content(args->fd, &content, header.count) == -1) {
                 // TODO: Handle return
-                printf("Error when reading content from app.\n");
+                printf("Error when reading content from parent clipboard.\n");
                 pthread_exit(NULL);
             }
+            update_region(content, header.count, &(regions[header.region]));
             // Send content to children, if any
-            if (update_children(*clip_children, header, args->regions) != 0 ) {
+            if (update_children(*clip_children, header, regions[header.region]) == -1 ) {
                 // TODO: Handle return
                 printf("Error when sending updates to children.\n");
                 pthread_exit(NULL);

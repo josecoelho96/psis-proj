@@ -160,7 +160,7 @@ int recv_data(int fd, char *buf, size_t count) {
         }
         total_bytes_recv += bytes_recv;
     }
-    return 1;
+    return total_bytes_recv;
 }
 
 int send_data(int fd, char *buf, size_t count) {
@@ -179,5 +179,5 @@ int send_data(int fd, char *buf, size_t count) {
         }
         total_bytes_sent += bytes_sent;
     }
-    return 1;
+    return total_bytes_sent;
 }
