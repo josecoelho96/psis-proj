@@ -63,7 +63,11 @@ void *recv_data_app(void *arg) {
         if (header.operation == OPERATION_COPY ) {
             printf("[DEBUG][recv_data_app] Operation: Copy\n");
 
-            if (recv_content(fd, &content, header.count) == -1) {
+            if ((content = (char *)malloc(header.count * sizeof(char))) == NULL) {
+                perror("Error [malloc]");
+                pthread_exit(NULL);
+            }
+            if (recv_content(fd, content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from app.\n");
                 pthread_exit(NULL);
@@ -200,7 +204,11 @@ void *recv_data_clip(void *arg) {
             printf("[DEBUG][recv_data_clip] Count: %ld.\n", header.count);
 
             // receive content from parent and update regions
-            if (recv_content(fd, &content, header.count) == -1) {
+            if ((content = (char *)malloc(header.count * sizeof(char))) == NULL) {
+                perror("Error [malloc]");
+                pthread_exit(NULL);
+            }
+            if (recv_content(fd, content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from clipboard.\n");
                 pthread_exit(NULL);
@@ -260,7 +268,11 @@ void *recv_data_parent_clip(void *arg) {
 
         if (header.operation == OPERATION_UPDATE) {
             // receive content from parent and update regions
-            if (recv_content(fd, &content, header.count) == -1) {
+            if ((content = (char *)malloc(header.count * sizeof(char))) == NULL) {
+                perror("Error [malloc]");
+                pthread_exit(NULL);
+            }
+            if (recv_content(fd, content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from parent clipboard.\n");
                 pthread_exit(NULL);

@@ -56,10 +56,7 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count) {
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
 
-    char header_msg[sizeof(header_t)];
     header_t header;
-
-
     int bytes_recv;
 
     if (region < 0 || region > 9) {
@@ -72,27 +69,28 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
         return 0;
     }
 
-
-    // send message header
     header.operation = OPERATION_PASTE;
     header.region = region;
     header.count = count;
 
-    memcpy(header_msg, &header, sizeof(header_t));
+    if (send_header(clipboard_id, header) == -1) {
+        printf("Error sending header.\n");
+        return 0;
+    }
 
-    send(clipboard_id, header_msg, sizeof(header_t), 0);
-    recv(clipboard_id, header_msg, sizeof(header_t), 0);
-
-    memcpy(&header, header_msg, sizeof(header_t));
-
-    printf("[DEBUG] Operation: %c\n", header.operation);
-    printf("[DEBUG] Region: %d\n", header.region);
-    printf("[DEBUG] Length: %ld\n", header.count);
+    // receive response header
+    if (recv_header(clipboard_id, &header) == -1) {
+        printf("Error receiving header.\n");
+    }
 
     if (header.count == 0) {
         printf("No data is present on the selected region.\n");
         return 0;
     }
-    bytes_recv = recv(clipboard_id, buf, header.count, 0);
-    return bytes_recv > 0 ? bytes_recv : 0;
+
+    if ((bytes_recv = recv_content(clipboard_id, buf, header.count)) == -1) {
+        printf("Error receiving content.\n");
+        return 0;
+    }
+    return bytes_recv;
 }

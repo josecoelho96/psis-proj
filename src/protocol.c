@@ -20,21 +20,15 @@ int recv_header(int fd, header_t *header) {
     return ret_val;
 }
 
-int recv_content(int fd, char **content, size_t count) {
+int recv_content(int fd, char *content, size_t count) {
 
-    char *cont;
     int ret_val;
-    if ((cont = (char *)malloc(count * sizeof(char))) == NULL) {
-        perror("Error [malloc]");
-        return -1;
-    }
-    ret_val = recv_data(fd, cont, count);
+
+    ret_val = recv_data(fd, content, count);
     if (ret_val <= 0) {
         // error. return immediately
         return -1;
     }
-
-    *content = cont;
     return ret_val;
 }
 
@@ -68,6 +62,11 @@ int send_message(int fd, header_t header, data_region_t region) {
     if (send_header(fd, header) == -1) {
         printf("Error sending header.\n");
         return -1;
+    }
+
+    if (header.count <= 0) {
+        printf("Error: Trying to send 0 bytes...\n");
+        return 0;
     }
 
     if ((ret_val = send_content(fd, region.content, header.count)) == -1) {

@@ -26,7 +26,7 @@ typedef struct connection {
 } connection_t;
 
 int recv_header(int fd, header_t *header);
-int recv_content(int fd, char **content, size_t count);
+int recv_content(int fd, char *content, size_t count);
 int send_header(int fd, header_t header);
 int send_content(int fd, char *content, size_t count);
 int send_message(int fd, header_t header, data_region_t region);
