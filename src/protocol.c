@@ -100,7 +100,6 @@ int send_regions(int fd, data_region_t *regions) {
 int update_region(char *content, size_t count, data_region_t *region) {
 
     // update regions
-    printf("[DEBUG][update_region] Received %.*s\n", (int)count, content);
     if (region->size > count) {
         // space previously allocated is bigger than needed
         memcpy(region->content, content, count);

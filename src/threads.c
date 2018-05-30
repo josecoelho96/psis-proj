@@ -12,13 +12,16 @@
 void *recv_conn_app(void *arg) {
 
     recv_conn_app_args_t *args = arg;
+    int ls_fd = args->fd;
     int app_fd;
     struct sockaddr_un app_addr;
     pthread_t recv_data_app_id;
     recv_data_app_args_t new_args;
 
+    printf("[DEBUG] New thread: recv_conn_app. fd=%d\n", ls_fd);
+
     while(1) {
-        if ((app_fd = stream_unix_accept(args->fd, &app_addr)) == -1) {
+        if ((app_fd = stream_unix_accept(ls_fd, &app_addr)) == -1) {
             printf("Error accepting new connection from app.\n");
             continue; // next cycle iteration
         }
@@ -43,13 +46,15 @@ void *recv_data_app(void *arg) {
     header_t header;
     connection_t **clip_children = (connection_t **)args->children_clip_connections;
     data_region_t *regions = (data_region_t *)args->regions;
+    int fd = args->fd;
     char *content;
 
-    printf("[DEBUG][recv_data_app] New app thread (fd: %d)\n", args->fd);
+    printf("[DEBUG] New thread: recv_data_app. fd=%d\n", fd);
+
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) <= 0) {
+        if (recv_header(fd, &header) <= 0) {
             // TODO: Handle return
             printf("Error when reading header from app.\n");
             pthread_exit(NULL);
@@ -58,7 +63,7 @@ void *recv_data_app(void *arg) {
         if (header.operation == OPERATION_COPY ) {
             printf("[DEBUG][recv_data_app] Operation: Copy\n");
 
-            if (recv_content(args->fd, &content, header.count) == -1) {
+            if (recv_content(fd, &content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from app.\n");
                 pthread_exit(NULL);
@@ -94,19 +99,17 @@ void *recv_data_app(void *arg) {
             }
         } else if (header.operation == OPERATION_PASTE ) {
             printf("[DEBUG][recv_data_app] Operation: Paste\n");
+            printf("[DEBUG] Paste %ld bytes (max) from region %d\n", header.count, header.region);
+            printf("[DEBUG] Actual region data size: %ld\n", regions[header.region].size);
 
-            // // printf("[DEBUG] Paste %d bytes (max) from region %d\n", content_size, region);
-            // // printf("[DEBUG] Actual region data size: %ld\n", regions[region].size);
+            header.count = regions[header.region].size > header.count ? header.count : regions[header.region].size;
+            printf("[DEBUG] Actual paste: %ld\n", header.count);
 
-            // bytes_paste = regions[header.region].size > header.count ? header.count : regions[header.region].size;
-            // printf("[DEBUG] Actual paste: %ld\n", bytes_paste);
-
-            // header.count = bytes_paste;
-
-            // memcpy(header_msg, &header, sizeof(header_t));
-
-            // send(*(int *)fd, header_msg, sizeof(header_t), 0);
-            // send(*(int *)fd, regions[header.region].content, bytes_paste, 0);
+            if (send_message(fd, header, regions[header.region]) == -1 ) {
+            // TODO: Handle return
+                printf("Error when sending message to parent clipboard.\n");
+                pthread_exit(NULL);
+            }
         } else {
             printf("[DEBUG][recv_data_app] Operation: Invalid\n");
         }
@@ -118,15 +121,18 @@ void *recv_conn_clip(void *arg) {
 
     recv_conn_clip_args_t *args = arg;
     struct sockaddr_in clip_addr;
-    int clip_fd = 0;
+    int clip_fd;
     pthread_t recv_data_clip_id;
     recv_data_clip_args_t new_args;
     connection_t *new_connection;
     connection_t **children = (connection_t **)args->children_connections;
+    int ls_fd = args->fd;
+
+    printf("[DEBUG] New thread: recv_conn_clip. fd=%d\n", ls_fd);
 
     while(1) {
 
-        if ((clip_fd = tcp_accept(args->fd, &clip_addr)) == -1) {
+        if ((clip_fd = tcp_accept(ls_fd, &clip_addr)) == -1) {
             printf("Error accepting new connection from clipboard.\n");
             continue; // next cycle iteration
         }
@@ -171,11 +177,14 @@ void *recv_data_clip(void *arg) {
     connection_t **children = (connection_t **)args->children_connections;
     data_region_t *regions = (data_region_t *)args->regions;
     char *content;
+    int fd = args->fd;
+
+    printf("[DEBUG] New thread: recv_data_clip. fd=%d\n", fd);
 
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) <= 0) {
+        if (recv_header(fd, &header) <= 0) {
             // TODO: Handle return
             printf("Error when reading header from clipboard.\n");
             pthread_exit(NULL);
@@ -187,13 +196,16 @@ void *recv_data_clip(void *arg) {
 
         if (header.operation == OPERATION_UPDATE) {
             printf("[DEBUG][recv_data_clip] Operation: UPDATE.\n");
+            printf("[DEBUG][recv_data_clip] Region: %d.\n", header.region);
+            printf("[DEBUG][recv_data_clip] Count: %ld.\n", header.count);
+
             // receive content from parent and update regions
-            if (recv_content(args->fd, &content, header.count) == -1) {
+            if (recv_content(fd, &content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from clipboard.\n");
                 pthread_exit(NULL);
             }
-            // printf("[DEBUG][recv_data_clip]Content received.\n");
+            // printf("[DEBUG][recv_data_clip] Content received.\n");
 
             // Update region
             // TODO: Mutexes ....
@@ -231,11 +243,12 @@ void *recv_data_parent_clip(void *arg) {
     header_t header;
     data_region_t *regions = (data_region_t *)args->regions;
     char *content;
+    int fd = args->fd;
 
     while(1) {
 
         // receive header
-        if (recv_header(args->fd, &header) <= 0) {
+        if (recv_header(fd, &header) <= 0) {
             // TODO: Handle return
             printf("Error when reading header parent clipboard.\n");
             pthread_exit(NULL);
@@ -247,7 +260,7 @@ void *recv_data_parent_clip(void *arg) {
 
         if (header.operation == OPERATION_UPDATE) {
             // receive content from parent and update regions
-            if (recv_content(args->fd, &content, header.count) == -1) {
+            if (recv_content(fd, &content, header.count) == -1) {
                 // TODO: Handle return
                 printf("Error when reading content from parent clipboard.\n");
                 pthread_exit(NULL);

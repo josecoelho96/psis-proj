@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
         printf("Error initializing unix stream server.\n");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] Unix stream server created.\n");
+    printf("[DEBUG][Main Thread] Unix stream server created. (fd: %d)\n", app_ls_fd);
 
     recv_conn_app_args.fd = app_ls_fd;
     recv_conn_app_args.parent_clip_fd = &parent_clip_fd;
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
         printf("Error initializing TCP server.\n");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] TCP server created.\n");
+    printf("[DEBUG][Main Thread] TCP server created. (fd: %d)\n", clip_ls_fd);
 
     // print port to terminal
     if (tcp_get_port(clip_ls_fd, &sv_clip_port) == -1) {
@@ -115,11 +115,11 @@ int main(int argc, char **argv) {
     printf("[DEBUG][main] Parent clip fd: %d\n", parent_clip_fd);
 
     while(!shutdown_clipboard) {
-        printf("[DEBUG] --\n");
-        // printf("[DEBUG] &regions = %p\n", (void *)&regions);
-        // printf("[DEBUG][main] children_connections [connection_t *]: %p\n", (void *)children_connections);
-        // printf("[DEBUG][main] children_connections [connection_t **]: %p\n", (void *)&children_connections);
-        // printf("[DEBUG][Main Thread] Regions information:\n");
+        // printf("[DEBUG] --\n");
+        // // // printf("[DEBUG] &regions = %p\n", (void *)&regions);
+        // // // printf("[DEBUG][main] children_connections [connection_t *]: %p\n", (void *)children_connections);
+        // // // printf("[DEBUG][main] children_connections [connection_t **]: %p\n", (void *)&children_connections);
+        printf("[DEBUG][Main Thread] Regions information:\n");
         for (int i = 0; i < REGIONS_QUANTITY; i++) {
             // printf("Region: %d | size: %ld \n", i, regions[i].size);
             printf("Region: %d | size: %ld | content: ", i, regions[i].size);
