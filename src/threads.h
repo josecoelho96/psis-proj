@@ -6,6 +6,7 @@ typedef struct recv_conn_app_args {
     int *parent_clip_fd;
     void *children_clip_connections;
     void *regions;
+    void *region_locks;
 } recv_conn_app_args_t;
 
 typedef struct recv_data_app_args {
@@ -13,6 +14,7 @@ typedef struct recv_data_app_args {
     int *parent_clip_fd;
     void *children_clip_connections;
     void *regions;
+    void *region_locks;
 } recv_data_app_args_t;
 
 typedef struct recv_conn_clip_args {
@@ -20,6 +22,7 @@ typedef struct recv_conn_clip_args {
     void *children_connections;
     int *parent_clip_fd;
     void *regions;
+    void *region_locks;
 } recv_conn_clip_args_t;
 
 typedef struct recv_data_clip_args {
@@ -27,12 +30,14 @@ typedef struct recv_data_clip_args {
     void *regions;
     void *children_connections;
     int *parent_clip_fd;
+    void *region_locks;
 } recv_data_clip_args_t;
 
 typedef struct recv_data_parent_clip_args {
     int fd;
     void *regions;
     void *children_clip_connections;
+    void *region_locks;
 } recv_data_parent_clip_args_t;
 
 void *recv_conn_app(void *arg);

@@ -18,7 +18,7 @@ void sign_interrupt_handler(int signum);
 int shutdown_clipboard = 0;
 
 void sign_interrupt_handler(int signum) {
-    printf("[DEBUG] Caught signal Ctrl-C\n");
+    // printf("[DEBUG] Caught signal Ctrl-C\n");
     shutdown_clipboard = 1;
 }
 
@@ -35,6 +35,8 @@ int main(int argc, char **argv) {
     recv_data_parent_clip_args_t recv_data_parent_clip_args;
     data_region_t regions[REGIONS_QUANTITY];
     connection_t *children_connections = NULL;
+    pthread_rwlock_t *region_locks[10];
+    char opt;
 
     // Handle Ctrl-C interrupt
 	signal(SIGINT, sign_interrupt_handler);
@@ -52,16 +54,21 @@ int main(int argc, char **argv) {
         regions[i].content = NULL;
     }
 
+    for (int i = 0; i < REGIONS_QUANTITY; i++) {
+        region_locks[i] = (pthread_rwlock_t *)malloc(1*sizeof(pthread_rwlock_t));
+    }
+
     if (init_stream_unix_sv(&app_ls_fd, &sv_app_addr, CLIP_SOCK_NAME) == -1) {
         printf("Error initializing unix stream server.\n");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] Unix stream server created. (fd: %d)\n", app_ls_fd);
+    // printf("[DEBUG][Main Thread] Unix stream server created. (fd: %d)\n", app_ls_fd);
 
     recv_conn_app_args.fd = app_ls_fd;
     recv_conn_app_args.parent_clip_fd = &parent_clip_fd;
     recv_conn_app_args.regions = regions;
     recv_conn_app_args.children_clip_connections = &children_connections;
+    recv_conn_app_args.region_locks = region_locks;
     if (pthread_create(&recv_conn_app_id, NULL, recv_conn_app, &recv_conn_app_args) != 0) {
         perror("Error [pthread_create]");
         exit(-1);
@@ -72,7 +79,7 @@ int main(int argc, char **argv) {
         printf("Error initializing TCP server.\n");
         exit(-1);
     }
-    printf("[DEBUG][Main Thread] TCP server created. (fd: %d)\n", clip_ls_fd);
+    // printf("[DEBUG][Main Thread] TCP server created. (fd: %d)\n", clip_ls_fd);
 
     // print port to terminal
     if (tcp_get_port(clip_ls_fd, &sv_clip_port) == -1) {
@@ -85,6 +92,7 @@ int main(int argc, char **argv) {
     recv_conn_clip_args.children_connections = &children_connections;
     recv_conn_clip_args.regions = regions;
     recv_conn_clip_args.parent_clip_fd = &parent_clip_fd;
+    recv_conn_clip_args.region_locks = region_locks;
     if (pthread_create(&recv_conn_clip_id, NULL, recv_conn_clip, &recv_conn_clip_args) != 0) {
         perror("Error [pthread_create]");
         exit(-1);
@@ -106,26 +114,29 @@ int main(int argc, char **argv) {
         recv_data_parent_clip_args.fd = parent_clip_fd;
         recv_data_parent_clip_args.regions = regions;
         recv_data_parent_clip_args.children_clip_connections = &children_connections;
+        recv_data_parent_clip_args.region_locks = region_locks;
         if (pthread_create(&recv_data_parent_clip_id, NULL, recv_data_parent_clip, &recv_data_parent_clip_args) != 0) {
             perror("Error [pthread_create]");
             exit(-1);
         }
         // printf("[DEBUG][Main Thread] recv_data_parent_clip thread created.\n");
     }
-    printf("[DEBUG][main] Parent clip fd: %d\n", parent_clip_fd);
+    // printf("[DEBUG][main] Parent clip fd: %d\n", parent_clip_fd);
 
     while(!shutdown_clipboard) {
-        // printf("[DEBUG] --\n");
-        // // // printf("[DEBUG] &regions = %p\n", (void *)&regions);
-        // // // printf("[DEBUG][main] children_connections [connection_t *]: %p\n", (void *)children_connections);
-        // // // printf("[DEBUG][main] children_connections [connection_t **]: %p\n", (void *)&children_connections);
-        printf("[DEBUG][Main Thread] Regions information:\n");
-        for (int i = 0; i < REGIONS_QUANTITY; i++) {
-            // printf("Region: %d | size: %ld \n", i, regions[i].size);
-            printf("Region: %d | size: %ld | content: ", i, regions[i].size);
-            regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
+
+        opt = getchar();
+
+        if (opt == 'r') {
+            printf("Regions information:\n");
+            for (int i = 0; i < REGIONS_QUANTITY; i++) {
+                // printf("Region: %d | size: %ld \n", i, regions[i].size);
+                printf("Region: %d | size: %ld | content: ", i, regions[i].size);
+                regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
+            }
+        } else if (opt == 'q') {
+            shutdown_clipboard = 1;
         }
-        sleep(2);
     }
 
     printf("[DEBUG] Shuting down clipboard\n");
