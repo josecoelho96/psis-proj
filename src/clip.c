@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
     connection_t *children_connections = NULL;
     pthread_rwlock_t *region_locks[10];
     char opt;
+    connection_t *aux;
 
     // Handle Ctrl-C interrupt
 	signal(SIGINT, sign_interrupt_handler);
@@ -46,7 +47,6 @@ int main(int argc, char **argv) {
         printf("Usage: clipboard [-c ip port]\n");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] Correct number of arguments.\n");
 
     // Initialize regions
     for (int i = 0; i < REGIONS_QUANTITY; i++) {
@@ -62,7 +62,6 @@ int main(int argc, char **argv) {
         printf("Error initializing unix stream server.\n");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] Unix stream server created. (fd: %d)\n", app_ls_fd);
 
     recv_conn_app_args.fd = app_ls_fd;
     recv_conn_app_args.parent_clip_fd = &parent_clip_fd;
@@ -73,13 +72,11 @@ int main(int argc, char **argv) {
         perror("Error [pthread_create]");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] recv_conn_app thread created.\n");
 
     if (init_tcp_sv(&clip_ls_fd, &sv_clip_addr, 0) == -1) {
         printf("Error initializing TCP server.\n");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] TCP server created. (fd: %d)\n", clip_ls_fd);
 
     // print port to terminal
     if (tcp_get_port(clip_ls_fd, &sv_clip_port) == -1) {
@@ -97,31 +94,24 @@ int main(int argc, char **argv) {
         perror("Error [pthread_create]");
         exit(-1);
     }
-    // printf("[DEBUG][Main Thread] recv_conn_clip thread created.\n");
 
     // Connected mode: Create tcp client and connect to remote clipboard
     if (argc == 4 && strcmp(argv[1], "-c") == 0) {
-        // printf("[DEBUG] Connect to remote clipboard!\n");
-        // printf("[DEBUG] Remote clipboard IP: %s\n", argv[2]);
-        // printf("[DEBUG] Remote clipboard port: %d\n", atoi(argv[3]));
 
         if (init_tcp_client(&parent_clip_fd, &parent_clip_addr, argv[2], atoi(argv[3])) == -1) {
             printf("Error initializing TCP client.\n");
             exit(-1);
         }
-        // printf("[DEBUG][Main Thread] TCP client created.\n");
-
         recv_data_parent_clip_args.fd = parent_clip_fd;
         recv_data_parent_clip_args.regions = regions;
         recv_data_parent_clip_args.children_clip_connections = &children_connections;
         recv_data_parent_clip_args.region_locks = region_locks;
+        recv_data_parent_clip_args.parent_clip_fd = &parent_clip_fd;
         if (pthread_create(&recv_data_parent_clip_id, NULL, recv_data_parent_clip, &recv_data_parent_clip_args) != 0) {
             perror("Error [pthread_create]");
             exit(-1);
         }
-        // printf("[DEBUG][Main Thread] recv_data_parent_clip thread created.\n");
     }
-    // printf("[DEBUG][main] Parent clip fd: %d\n", parent_clip_fd);
 
     while(!shutdown_clipboard) {
 
@@ -130,7 +120,6 @@ int main(int argc, char **argv) {
         if (opt == 'r') {
             printf("Regions information:\n");
             for (int i = 0; i < REGIONS_QUANTITY; i++) {
-                // printf("Region: %d | size: %ld \n", i, regions[i].size);
                 printf("Region: %d | size: %ld | content: ", i, regions[i].size);
                 regions[i].content == NULL ? printf("NULL\n") : printf("%.*s\n", (int)regions[i].size, (char *)regions[i].content);
             }
@@ -139,14 +128,40 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("[DEBUG] Shuting down clipboard\n");
+    printf("Shuting down clipboard\n");
 
-    // TODO: Clean all memory, close all connections
-
+    // TODO: Clean all memory
     // close UNIX socket
-    if (close_stream_unix(CLIP_SOCK_NAME) != 0) {
+    if (close_stream_unix_sv(CLIP_SOCK_NAME) != 0) {
         printf("Error closing UNIX socket.\n");
     }
 
+    // close tcp server
+    tcp_close(clip_ls_fd);
+
+    // Connected mode: Close tcp client
+    if (argc == 4 && strcmp(argv[1], "-c") == 0) {
+        if (parent_clip_fd != -1) {
+            tcp_close(parent_clip_fd);
+        }
+    }
+
+    // Clean all memory
+    // clean regions
+    for (int i = 0; i < REGIONS_QUANTITY; i++) {
+        free(regions[i].content);
+    }
+
+    // clean locks
+    for (int i = 0; i < REGIONS_QUANTITY; i++) {
+        free(region_locks[i]);
+    }
+
+    // // clean children list
+    while(children_connections != NULL) {
+        aux = children_connections;
+        children_connections = aux->next;
+        free(aux);
+    }
     return 0;
 }

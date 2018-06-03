@@ -13,7 +13,6 @@ int recv_header(int fd, header_t *header) {
     char header_msg[sizeof(header_t)];
     ret_val = recv_data(fd, header_msg, sizeof(header_t));
     if (ret_val <= 0) {
-        // TODO: error. return immediately
         return -1;
     }
     memcpy(header, header_msg, sizeof(header_t));
@@ -117,7 +116,6 @@ int update_children(connection_t *head, header_t header, data_region_t region) {
     while (aux!= NULL) {
         if (aux->fd > 0) {
             if (send_message(aux->fd, header, region) == -1 ) {
-                // TODO: Handle return
                 printf("Error when sending message to children.\n");
                 return -1;
             }

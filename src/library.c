@@ -79,8 +79,9 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
     }
 
     // receive response header
-    if (recv_header(clipboard_id, &header) == -1) {
+    if (recv_header(clipboard_id, &header) <= 0) {
         printf("Error receiving header.\n");
+        return 0;
     }
 
     if (header.count == 0) {
@@ -93,4 +94,13 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count) {
         return 0;
     }
     return bytes_recv;
+}
+
+int clipboard_wait(int clipboard_id, int region, void *buf, size_t count) {
+    // TODO:
+    return 0;
+}
+
+void clipboard_close(int clipboard_id) {
+    close_stream_unix(clipboard_id);
 }

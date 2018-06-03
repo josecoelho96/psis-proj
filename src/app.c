@@ -11,6 +11,7 @@ int main(int argc, char **argv) {
     char *buf;
     int recv_buf_len = 100;
     char *recv_buf;
+    char *new_dir;
     int region_number;
     int data_length;
     int bytes_sent;
@@ -19,6 +20,8 @@ int main(int argc, char **argv) {
     if ((fd = clipboard_connect(argv[1])) == -1) {
         exit(-1);
     }
+
+    new_dir = (char *)malloc(108*sizeof(char));
 
     while(1) {
         fgets(cmdline_buf, cmdline_len, stdin);
@@ -79,13 +82,22 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmdline_buf, "wait\n") == 0) {
             printf("TODO: Wait\n");
         } else if (strcmp(cmdline_buf, "close\n") == 0) {
-            printf("TODO: Close\n");
+            printf("Closing connection to clipboard ...\n");
+            clipboard_close(fd);
         } else if (strcmp(cmdline_buf, "connect\n") == 0) {
-            printf("TODO: Connect\n");
+            printf("Connecting to clipboard...\n");
+            printf("Directory: ");
+            fgets(cmdline_buf, cmdline_len, stdin);
+            memcpy(new_dir, cmdline_buf, strlen(cmdline_buf)-1);
+            printf("Connecting to: %s\n", cmdline_buf);
+            if ((fd = clipboard_connect(new_dir)) == -1) {
+                exit(-1);
+            }
         } else {
             printf("Valid options:\n- copy\n- paste\n- wait\n- connect\n- close\n");
         }
     }
 
+    free(new_dir);
    return 0;
 }

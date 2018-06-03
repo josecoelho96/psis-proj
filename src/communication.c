@@ -60,10 +60,27 @@ int stream_unix_accept(int fd, struct sockaddr_un *addr) {
     return new_fd;
 }
 
-int close_stream_unix(char *dir) {
+int close_stream_unix_sv(char *dir) {
 
     if (unlink(dir) == -1) {
         perror("Error [unlink]");
+        return -1;
+    }
+    return 0;
+}
+
+int close_stream_unix(int fd) {
+   if (close(fd) == -1) {
+        perror("Error [close]");
+        return -1;
+    }
+    return 0;
+}
+
+int tcp_close(int fd) {
+
+    if (close(fd) == -1) {
+        perror("Error [close]");
         return -1;
     }
     return 0;
@@ -150,7 +167,6 @@ int recv_data(int fd, char *buf, size_t count) {
     size_t total_bytes_recv = 0;
 
     while(total_bytes_recv < count) {
-        // printf("[DEBUG][recv_data] Read %ld bytes (out of %ld) [fd: %d]\n", total_bytes_recv, count, fd);
         bytes_recv = recv(fd, buf, count, 0);
         if (bytes_recv == -1) {
             perror("Error [recv]");
@@ -161,9 +177,6 @@ int recv_data(int fd, char *buf, size_t count) {
         }
         total_bytes_recv += bytes_recv;
     }
-    // printf("[DEBUG][recv_data] Done. Read %ld bytes [fd: %d]\n", total_bytes_recv, fd);
-    // printf("[DEBUG][recv_data] Received %.*s\n", (int)count, buf);
-
     return total_bytes_recv;
 }
 
@@ -173,7 +186,6 @@ int send_data(int fd, char *buf, size_t count) {
     size_t total_bytes_sent = 0;
 
     while(total_bytes_sent < count) {
-        // printf("[DEBUG][send_data] Sent %ld bytes (out of %ld) [fd: %d]\n", total_bytes_sent, count, fd);
         bytes_sent = send(fd, buf, count, 0);
         if (bytes_sent == -1) {
             perror("Error [send]");
@@ -184,7 +196,5 @@ int send_data(int fd, char *buf, size_t count) {
         }
         total_bytes_sent += bytes_sent;
     }
-    // printf("[DEBUG][recv_data] Done. Sent %ld bytes [fd: %d]\n", total_bytes_sent, fd);
-    // printf("[DEBUG][recv_data] Sent %.*s\n", (int)count, buf);
     return total_bytes_sent;
 }

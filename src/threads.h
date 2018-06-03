@@ -38,6 +38,7 @@ typedef struct recv_data_parent_clip_args {
     void *regions;
     void *children_clip_connections;
     void *region_locks;
+    int *parent_clip_fd;
 } recv_data_parent_clip_args_t;
 
 void *recv_conn_app(void *arg);
